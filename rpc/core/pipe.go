@@ -7,6 +7,7 @@ import (
 
 	"github.com/tendermint/tendermint/consensus"
 	"github.com/tendermint/tendermint/proxy"
+	"github.com/tendermint/tendermint/state/tx"
 	"github.com/tendermint/tendermint/types"
 )
 
@@ -44,6 +45,8 @@ var (
 	// objects
 	pubKey crypto.PubKey
 	genDoc *types.GenesisDoc // cache the genesis structure
+
+	txIndexer tx.Indexer
 )
 
 func SetConfig(c cfg.Config) {
@@ -80,4 +83,8 @@ func SetGenesisDoc(doc *types.GenesisDoc) {
 
 func SetProxyAppQuery(appConn proxy.AppConnQuery) {
 	proxyAppQuery = appConn
+}
+
+func SetTxIndexer(indexer tx.Indexer) {
+	txIndexer = indexer
 }

@@ -23,6 +23,8 @@ import (
 	rpccore "github.com/tendermint/tendermint/rpc/core"
 	grpccore "github.com/tendermint/tendermint/rpc/grpc"
 	sm "github.com/tendermint/tendermint/state"
+	"github.com/tendermint/tendermint/state/tx"
+	txindexer "github.com/tendermint/tendermint/state/tx/indexer"
 	"github.com/tendermint/tendermint/types"
 	"github.com/tendermint/tendermint/version"
 
@@ -44,6 +46,7 @@ type Node struct {
 	genesisDoc       *types.GenesisDoc
 	privKey          crypto.PrivKeyEd25519
 	proxyApp         proxy.AppConns
+	txIndexer        tx.Indexer
 }
 
 func NewNodeDefault(config cfg.Config) *Node {
@@ -75,7 +78,18 @@ func NewNode(config cfg.Config, privValidator *types.PrivValidator, clientCreato
 	}
 
 	// reload the state (it may have been updated by the handshake)
-	state = sm.GetState(config, stateDB)
+	state = sm.LoadState(stateDB)
+
+	// Transaction indexing
+	var txIndexer tx.Indexer
+	switch config.GetString("tx_indexer") {
+	case "kv":
+		store := dbm.NewDB("tx_indexer", config.GetString("db_backend"), config.GetString("db_dir"))
+		txIndexer = txindexer.NewKV(store)
+	default:
+		txIndexer = &txindexer.Null{}
+	}
+	state.TxIndexer = txIndexer
 
 	// Generate node PrivKey
 	privKey := crypto.GenPrivKeyEd25519()
@@ -179,6 +193,7 @@ func NewNode(config cfg.Config, privValidator *types.PrivValidator, clientCreato
 		genesisDoc:       state.GenesisDoc,
 		privKey:          privKey,
 		proxyApp:         proxyApp,
+		txIndexer:        txIndexer,
 	}
 	node.BaseService = *cmn.NewBaseService(log, "Node", node)
 	return node
@@ -257,6 +272,7 @@ func (n *Node) startRPC() ([]net.Listener, error) {
 	rpccore.SetPubKey(n.privValidator.PubKey)
 	rpccore.SetGenesisDoc(n.genesisDoc)
 	rpccore.SetProxyAppQuery(n.proxyApp.Query())
+	rpccore.SetTxIndexer(n.txIndexer)
 
 	listenAddrs := strings.Split(n.config.GetString("rpc_laddr"), ",")
 
